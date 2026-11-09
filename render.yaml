@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: arena-openai-proxy
+    runtime: python
+    buildCommand: ""
+    startCommand: "python app.py"
+    envVars:
+      - key: API_KEY
+        generateValue: true
+      - key: PORT
+        value: 10000
