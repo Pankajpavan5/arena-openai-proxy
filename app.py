@@ -34,7 +34,7 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, anthropic-version")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode("utf-8"))
 
@@ -42,11 +42,11 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, anthropic-version")
         self.end_headers()
 
     def _verify_auth(self):
-        auth_header = self.headers.get("Authorization", "")
+        auth_header = self.headers.get("Authorization", "") or self.headers.get("x-api-key", "")
         if not auth_header:
             return True
         token = auth_header.replace("Bearer ", "").strip()
@@ -57,8 +57,8 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
         if path == "/":
             self._send_json(200, {
                 "status": "online",
-                "message": "Render OpenAI Proxy is active",
-                "endpoints": ["/v1/models", "/v1/chat/completions"]
+                "message": "Render Proxy is active",
+                "endpoints": ["/v1/models", "/v1/chat/completions", "/v1/messages"]
             })
             return
 
@@ -69,14 +69,10 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
             })
             return
 
-        self._send_json(404, {"error": {"message": "Not found"}})
+        self._send_json(404, {"error": {"message": f"Endpoint not found: {path}"}})
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/v1/chat/completions", "/chat/completions"):
-            self._send_json(404, {"error": {"message": "Endpoint not found"}})
-            return
-
         if not self._verify_auth():
             self._send_json(401, {"error": {"message": "Invalid API key"}})
             return
@@ -90,30 +86,87 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": {"message": "Invalid JSON body"}})
             return
 
-        body["model"] = "openai-fast"
-        modified_data = json.dumps(body).encode("utf-8")
+        # Handle Anthropic /v1/messages endpoint
+        if path in ("/v1/messages", "/messages"):
+            system_prompt = body.get("system", "")
+            anthropic_messages = body.get("messages", [])
+            openai_messages = []
+            
+            if system_prompt:
+                if isinstance(system_prompt, list):
+                    sys_text = "\n".join([item.get("text", "") for item in system_prompt if isinstance(item, dict)])
+                else:
+                    sys_text = str(system_prompt)
+                openai_messages.append({"role": "system", "content": sys_text})
 
-        req = urllib.request.Request(
-            UPSTREAM_URL,
-            data=modified_data,
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": "render-openai-proxy"
+            for m in anthropic_messages:
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    text_parts = []
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text_parts.append(part.get("text", ""))
+                    content = "\n".join(text_parts)
+                openai_messages.append({"role": m.get("role", "user"), "content": content})
+
+            payload = {
+                "model": "openai-fast",
+                "messages": openai_messages
             }
-        )
 
-        try:
-            with urllib.request.urlopen(req, timeout=60) as res:
-                response_data = res.read()
-                self.send_response(res.status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(response_data)
-        except urllib.error.HTTPError as e:
-            self._send_json(e.code, {"error": {"message": e.read().decode("utf-8")}})
-        except Exception as e:
-            self._send_json(500, {"error": {"message": str(e)}})
+            req = urllib.request.Request(
+                UPSTREAM_URL,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "render-proxy"}
+            )
+
+            try:
+                with urllib.request.urlopen(req, timeout=60) as res:
+                    upstream_data = json.loads(res.read().decode("utf-8"))
+                    text_out = upstream_data["choices"][0]["message"]["content"]
+                    
+                    # Return Anthropic-format response
+                    anthropic_resp = {
+                        "id": upstream_data.get("id", "msg_123"),
+                        "type": "message",
+                        "role": "assistant",
+                        "model": body.get("model", "claude-3-5-sonnet"),
+                        "content": [{"type": "text", "text": text_out}],
+                        "stop_reason": "end_turn",
+                        "stop_sequence": None,
+                        "usage": {
+                            "input_tokens": upstream_data.get("usage", {}).get("prompt_tokens", 10),
+                            "output_tokens": upstream_data.get("usage", {}).get("completion_tokens", 20)
+                        }
+                    }
+                    self._send_json(200, anthropic_resp)
+            except Exception as e:
+                self._send_json(500, {"type": "error", "error": {"type": "api_error", "message": str(e)}})
+            return
+
+        # Handle OpenAI /v1/chat/completions endpoint
+        if path in ("/v1/chat/completions", "/chat/completions"):
+            body["model"] = "openai-fast"
+            req = urllib.request.Request(
+                UPSTREAM_URL,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "render-openai-proxy"}
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=60) as res:
+                    response_data = res.read()
+                    self.send_response(res.status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(response_data)
+            except urllib.error.HTTPError as e:
+                self._send_json(e.code, {"error": {"message": e.read().decode("utf-8")}})
+            except Exception as e:
+                self._send_json(500, {"error": {"message": str(e)}})
+            return
+
+        self._send_json(404, {"error": {"message": f"Endpoint not found: {path}"}})
 
     def log_message(self, format, *args):
         pass
