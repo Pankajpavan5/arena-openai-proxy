@@ -19,7 +19,6 @@ VALID_KEYS = {
 
 UPSTREAM_URL = "https://text.pollinations.ai/openai/chat/completions"
 
-# Global Analytics Stats
 STATS = {
     "start_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
     "total_requests": 0,
@@ -69,7 +68,7 @@ POPULAR_MODELS = [
     {"id": "gpt-oss-20b", "object": "model", "owned_by": "arena"}
 ]
 
-DASHBOARD_HTML = """<!DOCTYPE html>
+LOGIN_AND_DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -77,110 +76,204 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <title>Arena AI Proxy Dashboard</title>
 <style>
   :root {
-    --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f8fafc;
-    --muted: #94a3b8; --primary: #38bdf8; --success: #4ade80; --purple: #a855f7;
+    --bg: #0b0f19; --card: #151e32; --border: #23314f; --text: #f1f5f9;
+    --muted: #8e9bb5; --primary: #38bdf8; --success: #34d399; --purple: #a78bfa;
+    --danger: #f87171;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  body { background: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
-  .container { max-width: 1100px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: center; border-b: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; flex-wrap: wrap; gap: 10px; }
-  .title { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
-  .badge { background: #0369a1; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+  
+  /* Login Box */
+  #login-view {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px;
+  }
+  .login-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 32px;
+    width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .login-title { font-size: 1.6rem; font-weight: 700; color: var(--primary); text-align: center; margin-bottom: 6px; }
+  .login-sub { font-size: 0.85rem; color: var(--muted); text-align: center; margin-bottom: 24px; }
+  .form-group { margin-bottom: 18px; }
+  .form-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  .form-input {
+    width: 100%; background: #0b0f19; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; color: #fff; font-size: 0.95rem; outline: none; transition: 0.2s;
+  }
+  .form-input:focus { border-color: var(--primary); }
+  .btn-submit {
+    width: 100%; background: var(--primary); color: #000; border: none; padding: 12px;
+    border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 10px;
+  }
+  .login-err { color: var(--danger); font-size: 0.85rem; text-align: center; margin-top: 14px; display: none; }
+
+  /* Dashboard View */
+  #dash-view { display: none; padding: 24px; }
+  .container { max-width: 1100px; margin: 0 auto; width: 100%; }
+  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 18px; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .user-badge { background: #1e293b; border: 1px solid var(--border); padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; }
+  .btn-logout { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-  .card-label { color: var(--muted); font-size: 0.85rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
-  .card-val { font-size: 2rem; font-weight: 800; margin-top: 8px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .stat-label { color: var(--muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
+  .stat-num { font-size: 2rem; font-weight: 800; margin-top: 8px; }
   .c-blue { color: var(--primary); }
   .c-green { color: var(--success); }
   .c-purple { color: var(--purple); }
   .table-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; }
   th { color: var(--muted); padding: 12px; border-bottom: 1px solid var(--border); }
-  td { padding: 12px; border-bottom: 1px solid #1e293b; }
-  tr:hover td { background: #243248; }
-  .btn-refresh { background: var(--primary); color: #000; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  td { padding: 12px; border-bottom: 1px solid #1a253c; }
+  tr:hover td { background: #1a263f; }
 </style>
 <script>
-  async function reloadData() {
-    const res = await fetch('/api/stats');
-    const d = await res.json();
-    document.getElementById('total-req').innerText = d.total_requests;
-    document.getElementById('total-tok').innerText = d.total_tokens.toLocaleString();
-    document.getElementById('prompt-tok').innerText = d.total_prompt_tokens.toLocaleString();
-    document.getElementById('comp-tok').innerText = d.total_completion_tokens.toLocaleString();
-    document.getElementById('openai-req').innerText = d.openai_requests;
-    document.getElementById('anthropic-req').innerText = d.anthropic_requests;
+  let token = localStorage.getItem('dash_auth');
+
+  async function tryLogin() {
+    const u = document.getElementById('login-u').value.trim();
+    const p = document.getElementById('login-p').value.trim();
+    const cred = btoa(u + ':' + p);
     
-    const tbody = document.getElementById('log-rows');
-    tbody.innerHTML = '';
-    if (!d.recent_logs || d.recent_logs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No requests yet</td></tr>';
-      return;
-    }
-    d.recent_logs.forEach(l => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${l.time}</td><td><span style="color:var(--primary)">${l.type}</span></td><td>${l.model}</td><td>${l.tokens}</td><td style="color:var(--success)">${l.status}</td>`;
-      tbody.appendChild(tr);
+    const res = await fetch('/api/stats', {
+      headers: { 'Authorization': 'Basic ' + cred }
     });
+    
+    if (res.status === 200) {
+      token = cred;
+      localStorage.setItem('dash_auth', cred);
+      showDashboard();
+    } else {
+      document.getElementById('login-err').style.display = 'block';
+    }
   }
-  setInterval(reloadData, 3000);
+
+  function logout() {
+    localStorage.removeItem('dash_auth');
+    location.reload();
+  }
+
+  function showDashboard() {
+    document.getElementById('login-view').style.display = 'none';
+    document.getElementById('dash-view').style.display = 'block';
+    loadStats();
+    setInterval(loadStats, 3000);
+  }
+
+  async function loadStats() {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/stats', {
+        headers: { 'Authorization': 'Basic ' + token }
+      });
+      if (res.status !== 200) {
+        logout();
+        return;
+      }
+      const d = await res.json();
+      document.getElementById('total-req').innerText = d.total_requests;
+      document.getElementById('total-tok').innerText = d.total_tokens.toLocaleString();
+      document.getElementById('prompt-tok').innerText = d.total_prompt_tokens.toLocaleString();
+      document.getElementById('comp-tok').innerText = d.total_completion_tokens.toLocaleString();
+      document.getElementById('openai-req').innerText = d.openai_requests;
+      document.getElementById('anthropic-req').innerText = d.anthropic_requests;
+
+      const tbody = document.getElementById('log-rows');
+      tbody.innerHTML = '';
+      if (!d.recent_logs || d.recent_logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No requests yet</td></tr>';
+        return;
+      }
+      d.recent_logs.forEach(l => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${l.time}</td><td><span style="color:var(--primary)">${l.type}</span></td><td>${l.model}</td><td>${l.tokens}</td><td style="color:var(--success)">${l.status}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch(e) {}
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (token) {
+      showDashboard();
+    }
+  });
 </script>
 </head>
-<body onload="reloadData()">
-  <div class="container">
-    <div class="header">
-      <div>
-        <div class="title">⚡ Arena AI Proxy Dashboard</div>
-        <div style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">Admin: xfreexareana.ai &bull; Server Online</div>
+<body>
+  <!-- Login Screen -->
+  <div id="login-view">
+    <div class="login-card">
+      <div class="login-title">⚡ Arena AI Proxy</div>
+      <div class="login-sub">Sign in to Admin Dashboard</div>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="login-u" type="text" placeholder="xfreexareana.ai">
       </div>
-      <div>
-        <button class="btn-refresh" onclick="reloadData()">Refresh</button>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="login-p" type="password" placeholder="••••••••">
       </div>
+      <button class="btn-submit" onclick="tryLogin()">Log In</button>
+      <div class="login-err" id="login-err">Invalid username or password</div>
     </div>
+  </div>
 
-    <div class="grid">
-      <div class="card">
-        <div class="card-label">Total API Calls</div>
-        <div class="card-val c-blue" id="total-req">0</div>
+  <!-- Dashboard Screen -->
+  <div id="dash-view">
+    <div class="container">
+      <div class="header">
+        <div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary);">⚡ Arena AI Proxy Analytics</div>
+          <div style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">Connected Server: https://arena-openai-proxy.onrender.com</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="user-badge">👤 xfreexareana.ai</div>
+          <button class="btn-logout" onclick="logout()">Log Out</button>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-label">Total Tokens Used</div>
-        <div class="card-val c-green" id="total-tok">0</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Prompt Tokens</div>
-        <div class="card-val" id="prompt-tok">0</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Completion Tokens</div>
-        <div class="card-val c-purple" id="comp-tok">0</div>
-      </div>
-      <div class="card">
-        <div class="card-label">OpenAI Endpoints</div>
-        <div class="card-val" id="openai-req">0</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Anthropic / Messages</div>
-        <div class="card-val" id="anthropic-req">0</div>
-      </div>
-    </div>
 
-    <div class="table-card">
-      <h3 style="margin-bottom: 16px; font-size: 1.1rem;">Recent API Requests</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Endpoint</th>
-            <th>Model Requested</th>
-            <th>Tokens</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="log-rows">
-          <tr><td colspan="5" style="text-align:center;color:var(--muted)">Loading...</td></tr>
-        </tbody>
-      </table>
+      <div class="grid">
+        <div class="stat-card">
+          <div class="stat-label">Total API Calls</div>
+          <div class="stat-num c-blue" id="total-req">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Tokens Used</div>
+          <div class="stat-num c-green" id="total-tok">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Prompt Tokens</div>
+          <div class="stat-num" id="prompt-tok">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completion Tokens</div>
+          <div class="stat-num c-purple" id="comp-tok">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">OpenAI Calls</div>
+          <div class="stat-num" id="openai-req">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Anthropic Calls</div>
+          <div class="stat-num" id="anthropic-req">0</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <h3 style="margin-bottom: 16px; font-size: 1.05rem;">Live Request Logs</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Endpoint</th>
+              <th>Model</th>
+              <th>Tokens</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="log-rows">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted)">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </body>
@@ -216,13 +309,6 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
         except Exception:
             return False
 
-    def _request_auth(self):
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="Admin Dashboard"')
-        self.send_header("Content-Type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"<h1>401 Unauthorized</h1><p>Access denied.</p>")
-
     def _verify_api_auth(self):
         auth_header = self.headers.get("Authorization", "") or self.headers.get("x-api-key", "")
         if not auth_header:
@@ -233,15 +319,12 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
         
-        # Dashboard Route with HTTP Basic Auth
+        # Dashboard HTML Page (Includes Login UI and Dashboard after login)
         if path in ("/dashboard", "/dashboard/"):
-            if not self._check_admin_auth():
-                self._request_auth()
-                return
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(DASHBOARD_HTML.encode("utf-8"))
+            self.wfile.write(LOGIN_AND_DASHBOARD_HTML.encode("utf-8"))
             return
 
         # Dashboard Stats JSON API
@@ -326,7 +409,6 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
                     c_tok = upstream_data.get("usage", {}).get("completion_tokens", 80)
                     t_tok = p_tok + c_tok
                     
-                    # Update Stats
                     STATS["total_requests"] += 1
                     STATS["anthropic_requests"] += 1
                     STATS["total_prompt_tokens"] += p_tok
@@ -373,7 +455,6 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
                     c_tok = upstream_data.get("usage", {}).get("completion_tokens", 60)
                     t_tok = p_tok + c_tok
                     
-                    # Update Stats
                     STATS["total_requests"] += 1
                     STATS["openai_requests"] += 1
                     STATS["total_prompt_tokens"] += p_tok
