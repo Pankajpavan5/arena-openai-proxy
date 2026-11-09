@@ -14,19 +14,56 @@ VALID_KEYS = {
 UPSTREAM_URL = "https://text.pollinations.ai/openai/chat/completions"
 
 POPULAR_MODELS = [
+    # OpenAI Models
     {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
     {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
     {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
+    {"id": "gpt-4", "object": "model", "owned_by": "openai"},
     {"id": "gpt-3.5-turbo", "object": "model", "owned_by": "openai"},
+    {"id": "o1-preview", "object": "model", "owned_by": "openai"},
+    {"id": "o1-mini", "object": "model", "owned_by": "openai"},
+
+    # Anthropic Claude Models
     {"id": "claude-3-5-sonnet", "object": "model", "owned_by": "anthropic"},
+    {"id": "claude-3-5-sonnet-20241022", "object": "model", "owned_by": "anthropic"},
+    {"id": "claude-3-5-haiku", "object": "model", "owned_by": "anthropic"},
     {"id": "claude-3-opus", "object": "model", "owned_by": "anthropic"},
-    {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"},
-    {"id": "gemini-1.5-pro", "object": "model", "owned_by": "google"},
+    {"id": "claude-3-sonnet", "object": "model", "owned_by": "anthropic"},
+    {"id": "claude-3-haiku", "object": "model", "owned_by": "anthropic"},
+
+    # DeepSeek Reasoning & Chat Models
     {"id": "deepseek-r1", "object": "model", "owned_by": "deepseek"},
     {"id": "deepseek-v3", "object": "model", "owned_by": "deepseek"},
+    {"id": "deepseek-coder", "object": "model", "owned_by": "deepseek"},
+    {"id": "deepseek-chat", "object": "model", "owned_by": "deepseek"},
+
+    # Google Gemini Models
+    {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"},
+    {"id": "gemini-2.0-flash-exp", "object": "model", "owned_by": "google"},
+    {"id": "gemini-1.5-pro", "object": "model", "owned_by": "google"},
+    {"id": "gemini-1.5-flash", "object": "model", "owned_by": "google"},
+    {"id": "gemma-2-27b-it", "object": "model", "owned_by": "google"},
+
+    # Meta LLaMA Models
+    {"id": "meta-llama/llama-3.3-70b-instruct", "object": "model", "owned_by": "meta"},
+    {"id": "meta-llama/llama-3.1-405b-instruct", "object": "model", "owned_by": "meta"},
+    {"id": "meta-llama/llama-3.1-70b-instruct", "object": "model", "owned_by": "meta"},
+    {"id": "meta-llama/llama-3.1-8b-instruct", "object": "model", "owned_by": "meta"},
+    {"id": "llama-3-70b", "object": "model", "owned_by": "meta"},
+    {"id": "llama-3-8b", "object": "model", "owned_by": "meta"},
+
+    # Qwen & Mistral Open Weights
+    {"id": "qwen/qwen-2.5-coder-32b-instruct", "object": "model", "owned_by": "qwen"},
+    {"id": "qwen/qwen-2.5-72b-instruct", "object": "model", "owned_by": "qwen"},
+    {"id": "mistralai/mistral-large-2407", "object": "model", "owned_by": "mistral"},
+    {"id": "mistralai/mixtral-8x22b-instruct", "object": "model", "owned_by": "mistral"},
+    {"id": "codestral-latest", "object": "model", "owned_by": "mistral"},
+
+    # Arena OSS Reasoning
     {"id": "openai-fast", "object": "model", "owned_by": "arena"},
     {"id": "gpt-oss-20b", "object": "model", "owned_by": "arena"}
 ]
+
 
 class OpenAIProxyHandler(BaseHTTPRequestHandler):
     def _send_json(self, status_code, data):
