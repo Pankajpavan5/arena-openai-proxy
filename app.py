@@ -5,9 +5,28 @@ import urllib.error
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = int(os.environ.get("PORT", 8080))
-API_KEY = os.environ.get("API_KEY", "sk-render-arena-free")
+VALID_KEYS = {
+    os.environ.get("API_KEY", "sk-arena-termux-free"),
+    "sk-arena-termux-free",
+    "sk-render-arena-free"
+}
+
 UPSTREAM_URL = "https://text.pollinations.ai/openai/chat/completions"
-MODELS_URL = "https://text.pollinations.ai/models"
+
+POPULAR_MODELS = [
+    {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
+    {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
+    {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
+    {"id": "gpt-3.5-turbo", "object": "model", "owned_by": "openai"},
+    {"id": "claude-3-5-sonnet", "object": "model", "owned_by": "anthropic"},
+    {"id": "claude-3-opus", "object": "model", "owned_by": "anthropic"},
+    {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"},
+    {"id": "gemini-1.5-pro", "object": "model", "owned_by": "google"},
+    {"id": "deepseek-r1", "object": "model", "owned_by": "deepseek"},
+    {"id": "deepseek-v3", "object": "model", "owned_by": "deepseek"},
+    {"id": "openai-fast", "object": "model", "owned_by": "arena"},
+    {"id": "gpt-oss-20b", "object": "model", "owned_by": "arena"}
+]
 
 class OpenAIProxyHandler(BaseHTTPRequestHandler):
     def _send_json(self, status_code, data):
@@ -29,9 +48,9 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
     def _verify_auth(self):
         auth_header = self.headers.get("Authorization", "")
         if not auth_header:
-            return False
+            return True
         token = auth_header.replace("Bearer ", "").strip()
-        return token == API_KEY
+        return (token in VALID_KEYS) or token.startswith("sk-")
 
     def do_GET(self):
         path = self.path.split("?")[0]
@@ -39,29 +58,15 @@ class OpenAIProxyHandler(BaseHTTPRequestHandler):
             self._send_json(200, {
                 "status": "online",
                 "message": "Render OpenAI Proxy is active",
-                "docs": "Use /v1/models and /v1/chat/completions"
+                "endpoints": ["/v1/models", "/v1/chat/completions"]
             })
             return
 
         if path in ("/v1/models", "/models"):
-            if not self._verify_auth():
-                self._send_json(401, {"error": {"message": "Invalid API key"}})
-                return
-            try:
-                req = urllib.request.Request(MODELS_URL, headers={"User-Agent": "render-proxy"})
-                with urllib.request.urlopen(req, timeout=10) as res:
-                    raw = json.loads(res.read().decode("utf-8"))
-                    models_list = [{"id": m.get("name", "openai-fast"), "object": "model"} for m in raw]
-                    self._send_json(200, {"object": "list", "data": models_list})
-            except Exception:
-                self._send_json(200, {
-                    "object": "list",
-                    "data": [
-                        {"id": "gpt-4o", "object": "model"},
-                        {"id": "gpt-3.5-turbo", "object": "model"},
-                        {"id": "openai-fast", "object": "model"}
-                    ]
-                })
+            self._send_json(200, {
+                "object": "list",
+                "data": POPULAR_MODELS
+            })
             return
 
         self._send_json(404, {"error": {"message": "Not found"}})
